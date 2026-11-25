@@ -8,6 +8,8 @@ struct SDL_Renderer;
 struct SDL_Texture;
 
 namespace app {
+bool ensureRemoteFile(const std::filesystem::path& path);
+
 std::filesystem::path resolveSpriteSheet(const std::filesystem::path& gameRoot,
                                          const std::filesystem::path& documentPath, const gani::Document& document,
                                          const gani::Sprite& sprite);

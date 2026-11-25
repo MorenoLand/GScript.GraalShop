@@ -106,8 +106,12 @@ std::filesystem::path findGameRoot(std::filesystem::path start) {
 
 std::filesystem::path defaultDocument(const std::filesystem::path& gameRoot) {
   const std::filesystem::path candidate = gameRoot / "levels" / "ganis" / "idle.gani";
+#ifdef __EMSCRIPTEN__
+  return candidate;
+#else
   std::error_code error;
   return std::filesystem::is_regular_file(candidate, error) ? candidate : std::filesystem::path{};
+#endif
 }
 
 int reportError(const std::filesystem::path& path, const gani::ParseResult& result) {
@@ -197,13 +201,15 @@ int runWindow(const Options& options) {
       documentPath = defaultDocument(gameRoot);
     }
   }
-  if (gameRoot.empty()) gameRoot = findGameRoot(documentPath.empty() ? std::filesystem::current_path() : documentPath.parent_path());
 #ifdef __EMSCRIPTEN__
-  if (gameRoot.empty() && std::filesystem::is_directory("/game/levels/heads")) gameRoot = "/game";
+  if (gameRoot.empty()) gameRoot = "/";
+#else
+  if (gameRoot.empty()) gameRoot = findGameRoot(documentPath.empty() ? std::filesystem::current_path() : documentPath.parent_path());
 #endif
   if (documentPath.empty() && !gameRoot.empty()) documentPath = defaultDocument(gameRoot);
   gani::Document document;
   if (!documentPath.empty()) {
+    app::ensureRemoteFile(documentPath);
     const gani::ParseResult result = gani::load(documentPath);
     if (!result) return reportError(documentPath, result);
     document = std::move(*result.document);

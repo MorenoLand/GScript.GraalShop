@@ -2231,6 +2231,7 @@ void Editor::importSprites() {
 }
 
 void Editor::importSpritesFrom(const std::filesystem::path& path) {
+  ensureRemoteFile(path);
   const gani::ParseResult result = gani::load(path);
   if (!result) {
     status_ = "import failed";
@@ -2272,6 +2273,7 @@ void Editor::removeUnusedSprites() {
 }
 
 bool Editor::loadDocument(const std::filesystem::path& path) {
+  ensureRemoteFile(path);
   const gani::ParseResult result = gani::load(path);
   if (!result) {
     status_ = "open failed";

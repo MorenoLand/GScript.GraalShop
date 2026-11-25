@@ -2,14 +2,53 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 #include <SDL3/SDL.h>
+#include <algorithm>
 #include <cctype>
 #include <cstdio>
 #include <fstream>
 #include <iterator>
 #include <string_view>
 #include <vector>
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+#endif
 
 namespace app {
+bool ensureRemoteFile(const std::filesystem::path& path) {
+#ifdef __EMSCRIPTEN__
+  std::error_code error;
+  if (std::filesystem::is_regular_file(path, error)) return true;
+  std::string relative = path.generic_string();
+  while (!relative.empty() && relative.front() == '/') relative.erase(relative.begin());
+  if (relative.empty()) return false;
+  EM_ASM(
+      {
+        const url = UTF8ToString($0);
+        const dest = UTF8ToString($1);
+        try {
+          const request = new XMLHttpRequest();
+          request.open('GET', url, false);
+          request.overrideMimeType('text/plain; charset=x-user-defined');
+          request.send(null);
+          if (request.status >= 200 && request.status < 300 && request.responseText.length) {
+            const text = request.responseText;
+            const bytes = new Uint8Array(text.length);
+            for (let index = 0; index < text.length; ++index) bytes[index] = text.charCodeAt(index) & 0xff;
+            const slash = dest.lastIndexOf('/');
+            if (slash > 0) FS.mkdirTree(dest.substring(0, slash));
+            FS.writeFile(dest, bytes);
+          }
+        } catch (error) {
+        }
+      },
+      relative.c_str(), path.generic_string().c_str());
+  return std::filesystem::is_regular_file(path, error);
+#else
+  (void)path;
+  return true;
+#endif
+}
+
 namespace {
 bool parseSuffix(std::string_view token, std::string_view prefix, int& index) {
   if (!token.starts_with(prefix)) return false;
@@ -78,20 +117,20 @@ std::filesystem::path resolveSpriteSheet(const std::filesystem::path& gameRoot,
     resolved[key] = result;
     return result;
   };
-  const std::filesystem::path candidates[] = {base / name,
-                                              levels / folder / name,
-                                              levels / "hats" / name,
-                                              levels / "shields" / name,
-                                              levels / "swords" / name,
-                                              levels / "heads" / name,
-                                              levels / "bodies" / name,
-                                              levels / "weapons" / name,
-                                              levels / "images/downloads" / name,
-                                              levels / "images" / name,
-                                              levels / name,
-                                              gameRoot / name};
+  std::vector<std::filesystem::path> candidates;
+  const std::filesystem::path specific = levels / folder / name;
+#ifdef __EMSCRIPTEN__
+  candidates.push_back(specific);
+#endif
+  candidates.push_back(base / name);
+  if (std::find(candidates.begin(), candidates.end(), specific) == candidates.end()) candidates.push_back(specific);
+  for (const char* directory : {"hats", "shields", "swords", "heads", "bodies", "weapons", "images/downloads",
+                                "images"})
+    if (folder != directory) candidates.push_back(levels / directory / name);
+  candidates.push_back(levels / name);
+  candidates.push_back(gameRoot / name);
   for (const std::filesystem::path& candidate : candidates)
-    if (std::filesystem::is_regular_file(candidate)) return remember(candidate);
+    if (ensureRemoteFile(candidate) && std::filesystem::is_regular_file(candidate)) return remember(candidate);
   std::error_code error;
   for (std::filesystem::recursive_directory_iterator entry(levels / "images", error), end; !error && entry != end;
        entry.increment(error))
@@ -101,6 +140,7 @@ std::filesystem::path resolveSpriteSheet(const std::filesystem::path& gameRoot,
 
 bool imageSize(const std::filesystem::path& path, int& width, int& height) {
   int channels = 0;
+  ensureRemoteFile(path);
   return stbi_info(path.string().c_str(), &width, &height, &channels) != 0;
 }
 
@@ -114,6 +154,7 @@ SDL_Texture* SheetCache::get(const std::filesystem::path& path, bool bodyPalette
   const std::string key = path.string() + (bodyPalette ? "|body" : "");
   if (const auto entry = textures_.find(key); entry != textures_.end()) return entry->second;
   SDL_Texture* texture = nullptr;
+  ensureRemoteFile(path);
   std::ifstream stream(path, std::ios::binary);
   if (stream) {
     const std::vector<unsigned char> bytes((std::istreambuf_iterator<char>(stream)), std::istreambuf_iterator<char>());

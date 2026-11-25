@@ -31,7 +31,7 @@ On Windows the executable is written to `bin/GraalShop.exe`; on Linux it is writ
 
 ## WebAssembly
 
-With the Emscripten SDK installed at `build/emsdk`, run `build_wasm.ps1`. The output is `bin/GraalShop.html` with its `.js`, `.wasm`, and preloaded asset data next to it; serve that folder over HTTP and open the page. Put a game folder at `wasm-game/` before building to preload it as `/game` and open `levels/ganis/idle.gani` automatically.
+With the Emscripten SDK installed at `build/emsdk`, run `build_wasm.ps1`. The output is `bin/GraalShop.html` with its `.js`, `.wasm`, and preloaded asset data next to it. Serve that folder over HTTP; the editor fetches `levels/` from the same hosted directory, so `bin/levels` is used directly without rebuilding the page. It opens `levels/ganis/idle.gani` from that folder automatically.
 
 ## Test
 

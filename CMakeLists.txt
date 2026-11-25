@@ -46,11 +46,6 @@ if(WIN32)
 endif()
 if(EMSCRIPTEN)
   set(WASM_PRELOAD "--preload-file=${CMAKE_CURRENT_SOURCE_DIR}/assets@assets")
-  if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/wasm-game")
-    file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/settings.ini" "folder=/game\n")
-    list(APPEND WASM_PRELOAD "--preload-file=${CMAKE_CURRENT_SOURCE_DIR}/wasm-game@/game"
-                            "--preload-file=${CMAKE_CURRENT_BINARY_DIR}/settings.ini@/settings.ini")
-  endif()
   set_target_properties(GraalShop PROPERTIES SUFFIX ".html")
   target_link_options(GraalShop PRIVATE ${WASM_PRELOAD}
     "--shell-file=${CMAKE_CURRENT_SOURCE_DIR}/wasm/shell.html"
