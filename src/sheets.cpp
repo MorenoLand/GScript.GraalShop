@@ -7,6 +7,7 @@
 #include <cstdio>
 #include <fstream>
 #include <iterator>
+#include <set>
 #include <string_view>
 #include <vector>
 #ifdef __EMSCRIPTEN__
@@ -18,7 +19,15 @@ bool ensureRemoteFile(const std::filesystem::path& path) {
 #ifdef __EMSCRIPTEN__
   std::error_code error;
   if (std::filesystem::is_regular_file(path, error)) return true;
-  std::string relative = path.generic_string();
+  std::string extension = path.extension().string();
+  for (char& character : extension) character = static_cast<char>(std::tolower(static_cast<unsigned char>(character)));
+  if (!extension.empty() && extension != ".png" && extension != ".jpg" && extension != ".jpeg" &&
+      extension != ".bmp" && extension != ".gif" && extension != ".gani")
+    return false;
+  static std::set<std::string> missing;
+  const std::string key = path.generic_string();
+  if (missing.contains(key)) return false;
+  std::string relative = key;
   while (!relative.empty() && relative.front() == '/') relative.erase(relative.begin());
   if (relative.empty()) return false;
   EM_ASM(
@@ -42,7 +51,9 @@ bool ensureRemoteFile(const std::filesystem::path& path) {
         }
       },
       relative.c_str(), path.generic_string().c_str());
-  return std::filesystem::is_regular_file(path, error);
+  const bool exists = std::filesystem::is_regular_file(path, error);
+  if (!exists) missing.insert(key);
+  return exists;
 #else
   (void)path;
   return true;
@@ -108,6 +119,17 @@ std::filesystem::path resolveSpriteSheet(const std::filesystem::path& gameRoot,
     folder = "images/downloads";
   }
   if (name.empty()) return {};
+  bool fetchable = true;
+#ifdef __EMSCRIPTEN__
+  const std::size_t dot = name.rfind('.');
+  if (dot != std::string::npos) {
+    std::string extension = name.substr(dot + 1);
+    for (char& character : extension)
+      character = static_cast<char>(std::tolower(static_cast<unsigned char>(character)));
+    fetchable = extension == "png" || extension == "jpg" || extension == "jpeg" || extension == "bmp" ||
+                extension == "gif";
+  }
+#endif
   const std::filesystem::path levels = gameRoot / "levels";
   const std::filesystem::path base = documentPath.empty() ? gameRoot : documentPath.parent_path();
   static std::map<std::string, std::filesystem::path> resolved;
@@ -130,7 +152,8 @@ std::filesystem::path resolveSpriteSheet(const std::filesystem::path& gameRoot,
   candidates.push_back(levels / name);
   candidates.push_back(gameRoot / name);
   for (const std::filesystem::path& candidate : candidates)
-    if (ensureRemoteFile(candidate) && std::filesystem::is_regular_file(candidate)) return remember(candidate);
+    if ((!fetchable || ensureRemoteFile(candidate)) && std::filesystem::is_regular_file(candidate))
+      return remember(candidate);
   std::error_code error;
   for (std::filesystem::recursive_directory_iterator entry(levels / "images", error), end; !error && entry != end;
        entry.increment(error))
@@ -153,6 +176,9 @@ SheetCache::~SheetCache() {
 SDL_Texture* SheetCache::get(const std::filesystem::path& path, bool bodyPalette) {
   const std::string key = path.string() + (bodyPalette ? "|body" : "");
   if (const auto entry = textures_.find(key); entry != textures_.end()) return entry->second;
+  std::string extension = path.extension().string();
+  for (char& character : extension) character = static_cast<char>(std::tolower(static_cast<unsigned char>(character)));
+  if (extension == ".mng") return nullptr;
   SDL_Texture* texture = nullptr;
   ensureRemoteFile(path);
   std::ifstream stream(path, std::ios::binary);
