@@ -904,16 +904,12 @@ void Editor::drawCanvas(const Layout& layout, const std::filesystem::path& asset
   for (int x = static_cast<int>(layout.canvas.x); x < static_cast<int>(layout.canvas.x + layout.canvas.w); ++x)
     if ((x - static_cast<int>(layout.canvas.x)) % 6 < 3) SDL_RenderPoint(renderer_, static_cast<float>(x), baseY);
   const float cell = 48.0f * zoom_;
-  for (float y = baseY; y <= baseY + cell; y += 1.0f) {
-    if (y < layout.canvas.y || y >= layout.canvas.y + layout.canvas.h) continue;
-    const int offset = static_cast<int>((y - baseY) / zoom_);
-    if (offset % 6 < 3) SDL_RenderPoint(renderer_, baseX + cell, y);
-  }
-  for (float x = baseX + 1.0f; x <= baseX + cell; x += 1.0f) {
-    if (x < layout.canvas.x || x >= layout.canvas.x + layout.canvas.w) continue;
-    const int offset = static_cast<int>((x - baseX) / zoom_);
-    if ((offset + 2) % 6 < 3) SDL_RenderPoint(renderer_, x, baseY + cell);
-  }
+  for (int y = static_cast<int>(layout.canvas.y); y < static_cast<int>(layout.canvas.y + layout.canvas.h); ++y)
+    if ((y - static_cast<int>(layout.canvas.y)) % 6 < 3)
+      SDL_RenderPoint(renderer_, baseX + cell, static_cast<float>(y));
+  for (int x = static_cast<int>(layout.canvas.x); x < static_cast<int>(layout.canvas.x + layout.canvas.w); ++x)
+    if ((x - static_cast<int>(layout.canvas.x)) % 6 < 3)
+      SDL_RenderPoint(renderer_, static_cast<float>(x), baseY + cell);
   if (document_.movie) {
     for (const gani::MovieActor& actor : document_.movie->actors) {
       const gani::MovieKeyframe* keyframe = nearestKeyframe(actor, static_cast<int>(frame_));
@@ -2819,9 +2815,29 @@ bool Editor::handleEvent(const SDL_Event& event, int width, int height) {
         dragIndex_ = partIndex;
         dragOffsetX_ = x - (originX(frame.canvas) + static_cast<float>(part->dx) * zoom_);
         dragOffsetY_ = y - (originY(frame.canvas) + static_cast<float>(part->dy) * zoom_);
+      } else {
+        canvasPan_ = true;
+        canvasPanStartX_ = x;
+        canvasPanStartY_ = y;
+        canvasPanX_ = panX_;
+        canvasPanY_ = panY_;
       }
       return true;
     }
+  }
+  if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN && event.button.button == SDL_BUTTON_MIDDLE &&
+      inside(frame.canvas, event.button.x, event.button.y)) {
+    canvasPan_ = true;
+    canvasPanStartX_ = event.button.x;
+    canvasPanStartY_ = event.button.y;
+    canvasPanX_ = panX_;
+    canvasPanY_ = panY_;
+    return true;
+  }
+  if (event.type == SDL_EVENT_MOUSE_MOTION && canvasPan_) {
+    panX_ = canvasPanX_ + (event.motion.x - canvasPanStartX_);
+    panY_ = canvasPanY_ + (event.motion.y - canvasPanStartY_);
+    return true;
   }
   if (event.type == SDL_EVENT_MOUSE_MOTION && timelineResize_) {
     if (timelineResizeFrame_ >= 0 && timelineResizeFrame_ < static_cast<int>(document_.frames.size())) {
@@ -2868,6 +2884,7 @@ bool Editor::handleEvent(const SDL_Event& event, int width, int height) {
     return true;
   }
   if (event.type == SDL_EVENT_MOUSE_BUTTON_UP) {
+    canvasPan_ = false;
     if (stripPress_) {
       if (stripDragSprite_ >= 0) {
         const float x = event.button.x;
