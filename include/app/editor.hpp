@@ -137,11 +137,6 @@ private:
   int dragIndex_{-1};
   float dragOffsetX_{0.0f};
   float dragOffsetY_{0.0f};
-  bool canvasPan_{false};
-  float canvasPanStartX_{0.0f};
-  float canvasPanStartY_{0.0f};
-  float canvasPanX_{0.0f};
-  float canvasPanY_{0.0f};
   float elapsed_{0.0f};
   bool dirty_{false};
   std::string status_;
