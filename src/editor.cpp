@@ -2819,9 +2819,29 @@ bool Editor::handleEvent(const SDL_Event& event, int width, int height) {
         dragIndex_ = partIndex;
         dragOffsetX_ = x - (originX(frame.canvas) + static_cast<float>(part->dx) * zoom_);
         dragOffsetY_ = y - (originY(frame.canvas) + static_cast<float>(part->dy) * zoom_);
+      } else {
+        canvasPan_ = true;
+        canvasPanStartX_ = x;
+        canvasPanStartY_ = y;
+        canvasPanX_ = panX_;
+        canvasPanY_ = panY_;
       }
       return true;
     }
+  }
+  if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN && event.button.button == SDL_BUTTON_MIDDLE &&
+      inside(frame.canvas, event.button.x, event.button.y)) {
+    canvasPan_ = true;
+    canvasPanStartX_ = event.button.x;
+    canvasPanStartY_ = event.button.y;
+    canvasPanX_ = panX_;
+    canvasPanY_ = panY_;
+    return true;
+  }
+  if (event.type == SDL_EVENT_MOUSE_MOTION && canvasPan_) {
+    panX_ = canvasPanX_ + (event.motion.x - canvasPanStartX_);
+    panY_ = canvasPanY_ + (event.motion.y - canvasPanStartY_);
+    return true;
   }
   if (event.type == SDL_EVENT_MOUSE_MOTION && timelineResize_) {
     if (timelineResizeFrame_ >= 0 && timelineResizeFrame_ < static_cast<int>(document_.frames.size())) {
@@ -2868,6 +2888,7 @@ bool Editor::handleEvent(const SDL_Event& event, int width, int height) {
     return true;
   }
   if (event.type == SDL_EVENT_MOUSE_BUTTON_UP) {
+    canvasPan_ = false;
     if (stripPress_) {
       if (stripDragSprite_ >= 0) {
         const float x = event.button.x;
